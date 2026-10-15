@@ -121,6 +121,24 @@ describe('packBandPoints', () => {
     expect(n).toBe(2);
     expect(Array.from(out)).toEqual([0, 1, 2, 0, 1, 3, 4, 0]);
   });
+
+  it('packs epoch-millisecond X values relative to an origin', () => {
+    const x0 = 1_790_000_000_000;
+    const data: BandSeriesData = [
+      [x0, 1, 2],
+      [x0 + 1_000, 3, 4],
+    ];
+    const points = new Float32Array(8);
+    const stroke = new Float32Array(4);
+
+    packBandPoints(data, points, undefined, x0);
+    packBandStrokeXY(data, stroke, 0, undefined, x0);
+
+    expect(points[0]).toBe(0);
+    expect(points[4]).toBe(1_000);
+    expect(stroke[0]).toBe(0);
+    expect(stroke[2]).toBe(1_000);
+  });
 });
 
 describe('sampleBandSeries', () => {

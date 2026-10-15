@@ -7,6 +7,7 @@
  * - InterleavedXYYData (ArrayBufferView, stride 3)
  *
  * Layout for GPU pack: Float32 stride 4 (x, y, y1, pad) for 16-byte alignment.
+ * Packed X values may be relative to an origin to preserve Float32 precision.
  *
  * @module bandData
  * @internal
@@ -315,10 +316,12 @@ export function isBandShapedPayload(data: unknown): boolean {
 /**
  * Pack into Float32 stride-4: [x, y, y1, 0] per point (16-byte BandPoint).
  * Null / non-finite any of x/y/y1 → NaN for that channel (segment discard uses dual-endpoint).
+ * `xOffset` is subtracted from finite X values before packing.
  * Returns logical point count written.
  */
-export function packBandPoints(data: BandSeriesData, out: Float32Array, pointCount?: number): number {
+export function packBandPoints(data: BandSeriesData, out: Float32Array, pointCount?: number, xOffset = 0): number {
   const n = pointCount ?? getBandLength(data);
+  const xOrigin = Number.isFinite(xOffset) ? xOffset : 0;
   const need = n * 4;
   if (out.length < need) {
     throw new Error(`packBandPoints: out length ${out.length} < required ${need}`);
@@ -334,7 +337,7 @@ export function packBandPoints(data: BandSeriesData, out: Float32Array, pointCou
       continue;
     }
     // Pack finite or NaN; incomplete finite points still encode so VS can discard.
-    out[base] = Number.isFinite(p.x) ? p.x : Number.NaN;
+    out[base] = Number.isFinite(p.x) ? p.x - xOrigin : Number.NaN;
     out[base + 1] = Number.isFinite(p.y) ? p.y : Number.NaN;
     out[base + 2] = Number.isFinite(p.y1) ? p.y1 : Number.NaN;
     out[base + 3] = 0;
@@ -344,10 +347,17 @@ export function packBandPoints(data: BandSeriesData, out: Float32Array, pointCou
 
 /**
  * Pack y-curve (or y1-curve) as interleaved XY Float32 for stroke LineRenderer buffers.
- * `channel`: 0 = y, 1 = y1.
+ * `channel`: 0 = y, 1 = y1. `xOffset` is subtracted from finite X values.
  */
-export function packBandStrokeXY(data: BandSeriesData, out: Float32Array, channel: 0 | 1, pointCount?: number): number {
+export function packBandStrokeXY(
+  data: BandSeriesData,
+  out: Float32Array,
+  channel: 0 | 1,
+  pointCount?: number,
+  xOffset = 0
+): number {
   const n = pointCount ?? getBandLength(data);
+  const xOrigin = Number.isFinite(xOffset) ? xOffset : 0;
   const need = n * 2;
   if (out.length < need) {
     throw new Error(`packBandStrokeXY: out length ${out.length} < required ${need}`);
@@ -365,7 +375,7 @@ export function packBandStrokeXY(data: BandSeriesData, out: Float32Array, channe
       out[base] = Number.NaN;
       out[base + 1] = Number.NaN;
     } else {
-      out[base] = p.x;
+      out[base] = p.x - xOrigin;
       out[base + 1] = yv;
     }
   }
